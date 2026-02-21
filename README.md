@@ -72,6 +72,8 @@ High-throughput channel run:
 - `--no-segments` skip transcript-timed audio cuts
 - `--segment-workers 0` per-video segment-cut parallelism (`0` = auto)
 - `--ffmpeg-bin <path_or_name>` custom ffmpeg binary (useful across Linux/mac environments)
+- `--cookies /path/to/cookies.txt` pass YouTube cookies file (Netscape format)
+- `--cookies-from-browser <spec>` load cookies directly from browser profile
 - `--segment-format mp3|wav|flac|...` segment audio format (default: `mp3`)
 - `--segment-bitrate 128k` compressed segment bitrate
 - `--segment-min-duration 0.25` minimum transcript duration to keep a segment
@@ -121,3 +123,33 @@ Notes:
 
 - `video-workers * segment-workers` controls total ffmpeg cut concurrency. With defaults (`0`), the pipeline auto-tunes near available CPU cores.
 - Both macOS and Linux are supported; choose `--system` explicitly when you want deterministic tuning across machines.
+
+## Linux bot-check fix
+
+If you see:
+
+```text
+Sign in to confirm you’re not a bot
+```
+
+run with cookies:
+
+```bash
+./venv/bin/python all_youtube.py \
+  --channels-file channels.example.txt \
+  --dataset-root dataset \
+  --system linux \
+  --cookies /absolute/path/to/cookies.txt
+```
+
+or browser cookies:
+
+```bash
+./venv/bin/python all_youtube.py \
+  --channels-file channels.example.txt \
+  --dataset-root dataset \
+  --system linux \
+  --cookies-from-browser "firefox:default-release"
+```
+
+The same flags also work with `process.py`.

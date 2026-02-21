@@ -10,7 +10,15 @@ from typing import Any
 
 import scrapetube
 
-from process import now_iso, process_urls_batch, resolve_runtime, write_csv, write_jsonl
+from process import (
+    now_iso,
+    parse_cookies_from_browser,
+    process_urls_batch,
+    resolve_cookie_file,
+    resolve_runtime,
+    write_csv,
+    write_jsonl,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,6 +63,16 @@ def parse_args() -> argparse.Namespace:
         "--auto-language",
         default=None,
         help="Optional caption language code. If omitted, generated caption language is auto-detected.",
+    )
+    parser.add_argument(
+        "--cookies",
+        default=None,
+        help="Path to Netscape-format cookies.txt for YouTube auth (recommended on Linux).",
+    )
+    parser.add_argument(
+        "--cookies-from-browser",
+        default=None,
+        help="Browser cookie source in format BROWSER[+KEYRING][:PROFILE][::CONTAINER], e.g. firefox:default-release",
     )
     parser.add_argument(
         "--audio-format",
@@ -198,6 +216,8 @@ def main() -> None:
     dataset_root = Path(args.dataset_root).resolve()
     channels_file = Path(args.channels_file).resolve()
     channel_refs = load_channels_file(channels_file)
+    cookie_file = resolve_cookie_file(args.cookies)
+    cookies_from_browser = parse_cookies_from_browser(args.cookies_from_browser)
     runtime = resolve_runtime(
         system_arg=args.system,
         video_workers_arg=args.video_workers,
@@ -235,6 +255,8 @@ def main() -> None:
                 "video_workers": runtime["video_workers"],
                 "segment_workers": runtime["segment_workers"],
                 "ffmpeg_bin": args.ffmpeg_bin,
+                "cookie_file_provided": bool(cookie_file),
+                "cookies_from_browser_provided": bool(cookies_from_browser),
             }
         ),
     )
@@ -329,6 +351,8 @@ def main() -> None:
         all_urls,
         dataset_root,
         auto_language=args.auto_language,
+        cookie_file=cookie_file,
+        cookies_from_browser=cookies_from_browser,
         audio_format=args.audio_format,
         audio_quality=args.audio_quality,
         include_all_transcripts=not args.skip_all_transcripts,
@@ -371,6 +395,8 @@ def main() -> None:
         "video_workers": runtime["video_workers"],
         "segment_workers": runtime["segment_workers"],
         "ffmpeg_bin": args.ffmpeg_bin,
+        "cookie_file_provided": bool(cookie_file),
+        "cookies_from_browser_provided": bool(cookies_from_browser),
         "channels_total": len(channel_refs),
         "channels_succeeded": len([row for row in normalized_channel_rows if row["status"] == "success"]),
         "channels_failed": len([row for row in normalized_channel_rows if row["status"] == "failed"]),

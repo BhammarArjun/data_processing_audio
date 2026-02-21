@@ -5,6 +5,7 @@ import csv
 import json
 import os
 import platform
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,6 +40,16 @@ def parse_args() -> argparse.Namespace:
         "--auto-language",
         default=None,
         help="Optional language code for target caption export. If omitted, auto-generated caption language is detected automatically.",
+    )
+    parser.add_argument(
+        "--cookies",
+        default=None,
+        help="Path to Netscape-format cookies.txt for YouTube auth (recommended on Linux).",
+    )
+    parser.add_argument(
+        "--cookies-from-browser",
+        default=None,
+        help="Browser cookie source in format BROWSER[+KEYRING][:PROFILE][::CONTAINER], e.g. firefox:default-release",
     )
     parser.add_argument(
         "--audio-format",
@@ -174,6 +185,31 @@ def resolve_runtime(
     }
 
 
+def parse_cookies_from_browser(value: str | None) -> tuple[str, str | None, str | None, str | None] | None:
+    if not value:
+        return None
+    match = re.fullmatch(
+        r"(?x)(?P<name>[^+:]+)(?:\s*\+\s*(?P<keyring>[^:]+))?(?:\s*:\s*(?!:)(?P<profile>.+?))?(?:\s*::\s*(?P<container>.+))?",
+        value,
+    )
+    if match is None:
+        raise ValueError(f"Invalid --cookies-from-browser format: {value}")
+
+    browser_name, keyring, profile, container = match.group("name", "keyring", "profile", "container")
+    browser_name = browser_name.lower()
+    keyring = keyring.upper() if keyring else None
+    return browser_name, profile, keyring, container
+
+
+def resolve_cookie_file(path_value: str | None) -> str | None:
+    if not path_value:
+        return None
+    cookie_path = Path(path_value).expanduser().resolve()
+    if not cookie_path.exists():
+        raise FileNotFoundError(f"Cookie file not found: {cookie_path}")
+    return str(cookie_path)
+
+
 def to_relative(path: str | Path | None, root: Path) -> str | None:
     if path is None:
         return None
@@ -205,6 +241,8 @@ def process_urls_batch(
     dataset_root: Path,
     *,
     auto_language: str | None,
+    cookie_file: str | None,
+    cookies_from_browser: tuple[str, str | None, str | None, str | None] | None,
     audio_format: str,
     audio_quality: str,
     include_all_transcripts: bool,
@@ -230,6 +268,8 @@ def process_urls_batch(
                 url,
                 dataset_root,
                 auto_language=auto_language,
+                cookie_file=cookie_file,
+                cookies_from_browser=cookies_from_browser,
                 audio_format=audio_format,
                 audio_quality=audio_quality,
                 include_all_transcripts=include_all_transcripts,
@@ -276,6 +316,8 @@ def process_url(
     dataset_root: Path,
     *,
     auto_language: str | None,
+    cookie_file: str | None,
+    cookies_from_browser: tuple[str, str | None, str | None, str | None] | None,
     audio_format: str,
     audio_quality: str,
     include_all_transcripts: bool,
@@ -295,7 +337,11 @@ def process_url(
         "started_at": started_at,
     }
 
-    info = fetch_video_info(url)
+    info = fetch_video_info(
+        url,
+        cookie_file=cookie_file,
+        cookies_from_browser=cookies_from_browser,
+    )
     video_id = info["id"]
     video_root = dataset_root / "videos" / video_id
     audio_dir = video_root / "audio"
@@ -305,6 +351,8 @@ def process_url(
     audio_path = download_audio(
         url,
         audio_dir,
+        cookie_file=cookie_file,
+        cookies_from_browser=cookies_from_browser,
         audio_format=audio_format,
         audio_quality=audio_quality,
         overwrite=overwrite,
@@ -394,6 +442,10 @@ def process_url(
             "segments_dir": to_relative(segment_summary.get("segments_dir"), dataset_root),
             "error": segment_error,
         },
+        "auth": {
+            "cookie_file_provided": bool(cookie_file),
+            "cookies_from_browser_provided": bool(cookies_from_browser),
+        },
         "created_at": now_iso(),
     }
     metadata_path = video_root / "metadata.json"
@@ -425,6 +477,8 @@ def main() -> None:
     dataset_root = Path(args.dataset_root).resolve()
     urls_file = Path(args.urls_file).resolve()
     urls = load_urls(urls_file)
+    cookie_file = resolve_cookie_file(args.cookies)
+    cookies_from_browser = parse_cookies_from_browser(args.cookies_from_browser)
     runtime = resolve_runtime(
         system_arg=args.system,
         video_workers_arg=args.video_workers,
@@ -451,6 +505,8 @@ def main() -> None:
                 "video_workers": runtime["video_workers"],
                 "segment_workers": runtime["segment_workers"],
                 "ffmpeg_bin": args.ffmpeg_bin,
+                "cookie_file_provided": bool(cookie_file),
+                "cookies_from_browser_provided": bool(cookies_from_browser),
             }
         ),
     )
@@ -463,6 +519,8 @@ def main() -> None:
         urls,
         dataset_root,
         auto_language=args.auto_language,
+        cookie_file=cookie_file,
+        cookies_from_browser=cookies_from_browser,
         audio_format=args.audio_format,
         audio_quality=args.audio_quality,
         include_all_transcripts=not args.skip_all_transcripts,
@@ -500,6 +558,8 @@ def main() -> None:
         "video_workers": runtime["video_workers"],
         "segment_workers": runtime["segment_workers"],
         "ffmpeg_bin": args.ffmpeg_bin,
+        "cookie_file_provided": bool(cookie_file),
+        "cookies_from_browser_provided": bool(cookies_from_browser),
         "total_urls": len(records),
         "success_count": success_count,
         "partial_count": partial_count,
