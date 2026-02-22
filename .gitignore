@@ -8,4 +8,5 @@ __pycache__/
 *.bak
 *.tmp
 *.swp
-*.swo   
+*.swo
+cookies*.txt

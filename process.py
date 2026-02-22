@@ -262,6 +262,16 @@ def process_urls_batch(
 
     records: list[dict[str, Any] | None] = [None] * len(urls)
 
+    def status_suffix(record: dict[str, Any]) -> str:
+        status = str(record.get("status", "unknown"))
+        error = str(record.get("error") or "").strip()
+        if status == "success" or not error:
+            return status
+        compact_error = " ".join(error.split())
+        if len(compact_error) > 180:
+            compact_error = compact_error[:177] + "..."
+        return f"{status} ({compact_error})"
+
     def run_single(idx: int, url: str) -> tuple[int, dict[str, Any]]:
         try:
             record = process_url(
@@ -296,7 +306,7 @@ def process_urls_batch(
         for index, url in enumerate(urls):
             idx, record = run_single(index, url)
             records[idx] = record
-            print(f"[{label} {idx + 1}/{len(urls)}] {url} -> {record['status']}")
+            print(f"[{label} {idx + 1}/{len(urls)}] {url} -> {status_suffix(record)}")
     else:
         with ThreadPoolExecutor(max_workers=video_workers) as executor:
             futures = {executor.submit(run_single, idx, url): (idx, url) for idx, url in enumerate(urls)}
@@ -306,7 +316,7 @@ def process_urls_batch(
                 completed += 1
                 out_idx, record = future.result()
                 records[out_idx] = record
-                print(f"[{label} {completed}/{len(urls)}] {url} -> {record['status']}")
+                print(f"[{label} {completed}/{len(urls)}] {url} -> {status_suffix(record)}")
 
     return [record for record in records if record is not None]
 

@@ -167,3 +167,16 @@ If you still see `Requested format is not available` on many videos:
   --cookies "$PWD/cookies.txt" \
   --video-workers 4
 ```
+
+Single-video smoke test (recommended before large runs):
+
+```bash
+python -m yt_dlp --version
+ffmpeg -version | head -n 1
+python -m yt_dlp \
+  --cookies "$PWD/cookies.txt" \
+  -f "bestaudio*/best" \
+  --skip-download "https://www.youtube.com/watch?v=WnaTpgwMrnI"
+```
+
+If the command above fails, the issue is outside the pipeline (cookie/account/IP/session), not dataset directory logic.
