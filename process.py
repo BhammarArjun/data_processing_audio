@@ -13,7 +13,6 @@ from typing import Any
 
 from audio import download_audio, fetch_video_info
 from caption import fetch_and_store_transcripts
-from segment import create_transcript_aligned_segments
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,42 +77,9 @@ def parse_args() -> argparse.Namespace:
         help="Parallel video workers. 0 means auto (use all CPU cores).",
     )
     parser.add_argument(
-        "--no-segments",
-        action="store_true",
-        help="Skip transcript-timed audio segment generation.",
-    )
-    parser.add_argument(
-        "--segment-workers",
-        type=int,
-        default=0,
-        help="Parallel workers per video for transcript-timed cuts. 0 means auto.",
-    )
-    parser.add_argument(
         "--ffmpeg-bin",
         default="ffmpeg",
         help="ffmpeg binary path/name. Default: ffmpeg",
-    )
-    parser.add_argument(
-        "--segment-format",
-        default="mp3",
-        help="Audio format for transcript-timed segments. Default: mp3",
-    )
-    parser.add_argument(
-        "--segment-bitrate",
-        default="128k",
-        help="Bitrate for compressed segment formats. Default: 128k",
-    )
-    parser.add_argument(
-        "--segment-min-duration",
-        type=float,
-        default=0.25,
-        help="Minimum duration (seconds) required to keep a segment. Default: 0.25",
-    )
-    parser.add_argument(
-        "--segment-min-chars",
-        type=int,
-        default=1,
-        help="Minimum text length required to keep a segment. Default: 1",
     )
     return parser.parse_args()
 
@@ -160,28 +126,21 @@ def resolve_runtime(
     *,
     system_arg: str,
     video_workers_arg: int,
-    segment_workers_arg: int,
 ) -> dict[str, Any]:
     cpu_count = os.cpu_count() or 1
     detected_system = detect_current_system()
     selected_system = detected_system if system_arg == "auto" else system_arg
 
-    if video_workers_arg < 0 or segment_workers_arg < 0:
+    if video_workers_arg < 0:
         raise ValueError("Worker counts must be >= 0.")
 
     video_workers = video_workers_arg if video_workers_arg > 0 else max(1, cpu_count)
-    if segment_workers_arg > 0:
-        segment_workers = segment_workers_arg
-    else:
-        # Keep total ffmpeg concurrency near CPU count by default.
-        segment_workers = max(1, cpu_count // max(1, video_workers))
 
     return {
         "cpu_count": cpu_count,
         "detected_system": detected_system,
         "system": selected_system,
         "video_workers": video_workers,
-        "segment_workers": segment_workers,
     }
 
 
@@ -247,12 +206,6 @@ def process_urls_batch(
     audio_quality: str,
     include_all_transcripts: bool,
     overwrite: bool,
-    generate_segments: bool,
-    segment_format: str,
-    segment_bitrate: str,
-    segment_min_duration: float,
-    segment_min_chars: int,
-    segment_workers: int,
     ffmpeg_bin: str,
     video_workers: int,
     label: str = "video",
@@ -284,12 +237,6 @@ def process_urls_batch(
                 audio_quality=audio_quality,
                 include_all_transcripts=include_all_transcripts,
                 overwrite=overwrite,
-                generate_segments=generate_segments,
-                segment_format=segment_format,
-                segment_bitrate=segment_bitrate,
-                segment_min_duration=segment_min_duration,
-                segment_min_chars=segment_min_chars,
-                segment_workers=segment_workers,
                 ffmpeg_bin=ffmpeg_bin,
             )
         except Exception as exc:  # noqa: BLE001
@@ -332,12 +279,6 @@ def process_url(
     audio_quality: str,
     include_all_transcripts: bool,
     overwrite: bool,
-    generate_segments: bool,
-    segment_format: str,
-    segment_bitrate: str,
-    segment_min_duration: float,
-    segment_min_chars: int,
-    segment_workers: int,
     ffmpeg_bin: str,
 ) -> dict[str, Any]:
     started_at = now_iso()
@@ -388,35 +329,6 @@ def process_url(
     except Exception as exc:  # noqa: BLE001
         transcript_error = str(exc)
 
-    segment_error = None
-    segment_summary: dict[str, Any] = {
-        "segment_count": 0,
-        "skipped_count": 0,
-        "base_track": None,
-        "index_path": None,
-        "segments_dir": None,
-        "error": None,
-    }
-    if generate_segments and transcript_error is None:
-        try:
-            segment_summary = create_transcript_aligned_segments(
-                source_audio_path=audio_path,
-                transcript_summary=transcript_summary,
-                output_root=video_root / "segments",
-                overwrite=overwrite,
-                min_duration=segment_min_duration,
-                min_chars=segment_min_chars,
-                segment_audio_format=segment_format,
-                segment_audio_bitrate=segment_bitrate,
-                workers=segment_workers,
-                ffmpeg_bin=ffmpeg_bin,
-            )
-            segment_error = segment_summary.get("error")
-        except Exception as exc:  # noqa: BLE001
-            segment_error = str(exc)
-    elif generate_segments and transcript_error is not None:
-        segment_error = "Skipped because transcript fetch failed."
-
     metadata = {
         "video_id": video_id,
         "url": url,
@@ -442,16 +354,16 @@ def process_url(
             "error": transcript_error,
         },
         "segments": {
-            "enabled": bool(generate_segments),
-            "segment_count": int(segment_summary.get("segment_count", 0)),
-            "skipped_count": int(segment_summary.get("skipped_count", 0)),
-            "base_track": segment_summary.get("base_track"),
-            "segment_format": segment_format if generate_segments else None,
-            "segment_workers": segment_workers if generate_segments else None,
-            "ffmpeg_bin": ffmpeg_bin if generate_segments else None,
-            "index_path": to_relative(segment_summary.get("index_path"), dataset_root),
-            "segments_dir": to_relative(segment_summary.get("segments_dir"), dataset_root),
-            "error": segment_error,
+            "enabled": False,
+            "segment_count": 0,
+            "skipped_count": 0,
+            "base_track": None,
+            "segment_format": None,
+            "segment_workers": None,
+            "ffmpeg_bin": None,
+            "index_path": None,
+            "segments_dir": None,
+            "error": None,
         },
         "auth": {
             "cookie_file_provided": bool(cookie_file),
@@ -464,7 +376,7 @@ def process_url(
 
     record.update(
         {
-            "status": "success" if transcript_error is None and segment_error is None else "partial",
+            "status": "success" if transcript_error is None else "partial",
             "video_id": video_id,
             "title": info.get("title"),
             "duration_seconds": info.get("duration"),
@@ -473,10 +385,10 @@ def process_url(
             "auto_language": auto_language or transcript_summary.get("auto_language_code"),
             "auto_transcript_path": to_relative(transcript_summary.get("auto_language_path"), dataset_root),
             "auto_transcript_mode": transcript_summary.get("auto_language_mode"),
-            "segment_count": int(segment_summary.get("segment_count", 0)),
-            "segments_index_path": to_relative(segment_summary.get("index_path"), dataset_root),
+            "segment_count": 0,
+            "segments_index_path": None,
             "metadata_path": to_relative(metadata_path, dataset_root),
-            "error": transcript_error or segment_error,
+            "error": transcript_error,
             "finished_at": now_iso(),
         }
     )
@@ -493,7 +405,6 @@ def main() -> None:
     runtime = resolve_runtime(
         system_arg=args.system,
         video_workers_arg=args.video_workers,
-        segment_workers_arg=args.segment_workers,
     )
 
     dataset_root.mkdir(parents=True, exist_ok=True)
@@ -514,7 +425,6 @@ def main() -> None:
                 "detected_system": runtime["detected_system"],
                 "cpu_count": runtime["cpu_count"],
                 "video_workers": runtime["video_workers"],
-                "segment_workers": runtime["segment_workers"],
                 "ffmpeg_bin": args.ffmpeg_bin,
                 "cookie_file_provided": bool(cookie_file),
                 "cookies_from_browser_provided": bool(cookies_from_browser),
@@ -536,12 +446,6 @@ def main() -> None:
         audio_quality=args.audio_quality,
         include_all_transcripts=not args.skip_all_transcripts,
         overwrite=args.overwrite,
-        generate_segments=not args.no_segments,
-        segment_format=args.segment_format,
-        segment_bitrate=args.segment_bitrate,
-        segment_min_duration=args.segment_min_duration,
-        segment_min_chars=args.segment_min_chars,
-        segment_workers=runtime["segment_workers"],
         ffmpeg_bin=args.ffmpeg_bin,
         video_workers=runtime["video_workers"],
         label="video",
@@ -567,7 +471,6 @@ def main() -> None:
         "detected_system": runtime["detected_system"],
         "cpu_count": runtime["cpu_count"],
         "video_workers": runtime["video_workers"],
-        "segment_workers": runtime["segment_workers"],
         "ffmpeg_bin": args.ffmpeg_bin,
         "cookie_file_provided": bool(cookie_file),
         "cookies_from_browser_provided": bool(cookies_from_browser),

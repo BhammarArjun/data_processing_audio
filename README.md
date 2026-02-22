@@ -2,7 +2,7 @@
 
 This project supports:
 
-- URL-first processing (`process.py`): URLs -> audio + transcripts + transcript-timed audio cuts
+- URL-first processing (`process.py`): URLs -> audio + transcripts
 - Channel-first processing (`all_youtube.py`): channel refs -> video URLs -> same pipeline
 
 ## URL-first input
@@ -35,8 +35,7 @@ High-throughput example (auto uses all CPU cores):
   --urls-file urls.example.txt \
   --dataset-root dataset \
   --system linux \
-  --video-workers 0 \
-  --segment-workers 0
+  --video-workers 0
 ```
 
 ## Channel-first input
@@ -64,8 +63,7 @@ High-throughput channel run:
   --dataset-root dataset \
   --system mac \
   --channel-workers 0 \
-  --video-workers 0 \
-  --segment-workers 0
+  --video-workers 0
 ```
 
 ## Useful flags
@@ -75,15 +73,9 @@ High-throughput channel run:
 - `--system auto|mac|linux` choose runtime profile explicitly (or auto-detect)
 - `--channel-workers 0` channel expansion parallelism (`all_youtube.py`)
 - `--video-workers 0` video-level parallelism (`0` = all CPU cores)
-- `--no-segments` skip transcript-timed audio cuts
-- `--segment-workers 0` per-video segment-cut parallelism (`0` = auto)
 - `--ffmpeg-bin <path_or_name>` custom ffmpeg binary (useful across Linux/mac environments)
 - `--cookies /path/to/cookies.txt` pass YouTube cookies file (Netscape format)
 - `--cookies-from-browser <spec>` load cookies directly from browser profile
-- `--segment-format mp3|wav|flac|...` segment audio format (default: `mp3`)
-- `--segment-bitrate 128k` compressed segment bitrate
-- `--segment-min-duration 0.25` minimum transcript duration to keep a segment
-- `--segment-min-chars 1` minimum transcript text length to keep a segment
 - `--overwrite` re-download/re-generate existing files
 
 ## Output layout
@@ -117,17 +109,12 @@ dataset/
         auto_detected_<lang>.json
         manual/<lang>.json
         auto/<lang>.json
-      segments/
-        index.jsonl
-        000000/
-          audio.mp3
-          transcripts.json
       metadata.json
 ```
 
 Notes:
 
-- `video-workers * segment-workers` controls total ffmpeg cut concurrency. With defaults (`0`), the pipeline auto-tunes near available CPU cores.
+- `video-workers` controls parallel video processing. With default (`0`), the pipeline uses available CPU cores.
 - Both macOS and Linux are supported; choose `--system` explicitly when you want deterministic tuning across machines.
 
 ## Linux bot-check fix

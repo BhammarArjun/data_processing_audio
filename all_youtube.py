@@ -23,7 +23,7 @@ from process import (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Channel-first YouTube dataset pipeline for ASR/TTS (links -> audio -> captions -> segments)."
+        description="Channel-first YouTube dataset pipeline for ASR/TTS (links -> audio -> captions)."
     )
     parser.add_argument(
         "--channels-file",
@@ -101,42 +101,9 @@ def parse_args() -> argparse.Namespace:
         help="Parallel video workers. 0 means auto (use all CPU cores).",
     )
     parser.add_argument(
-        "--no-segments",
-        action="store_true",
-        help="Skip transcript-timed audio segment generation.",
-    )
-    parser.add_argument(
-        "--segment-workers",
-        type=int,
-        default=0,
-        help="Parallel workers per video for transcript-timed cuts. 0 means auto.",
-    )
-    parser.add_argument(
         "--ffmpeg-bin",
         default="ffmpeg",
         help="ffmpeg binary path/name. Default: ffmpeg",
-    )
-    parser.add_argument(
-        "--segment-format",
-        default="mp3",
-        help="Audio format for transcript-timed segments. Default: mp3",
-    )
-    parser.add_argument(
-        "--segment-bitrate",
-        default="128k",
-        help="Bitrate for compressed segment formats. Default: 128k",
-    )
-    parser.add_argument(
-        "--segment-min-duration",
-        type=float,
-        default=0.25,
-        help="Minimum duration (seconds) required to keep a segment. Default: 0.25",
-    )
-    parser.add_argument(
-        "--segment-min-chars",
-        type=int,
-        default=1,
-        help="Minimum text length required to keep a segment. Default: 1",
     )
     return parser.parse_args()
 
@@ -221,7 +188,6 @@ def main() -> None:
     runtime = resolve_runtime(
         system_arg=args.system,
         video_workers_arg=args.video_workers,
-        segment_workers_arg=args.segment_workers,
     )
 
     if args.channel_workers < 0:
@@ -253,7 +219,6 @@ def main() -> None:
                 "cpu_count": runtime["cpu_count"],
                 "channel_workers": channel_workers,
                 "video_workers": runtime["video_workers"],
-                "segment_workers": runtime["segment_workers"],
                 "ffmpeg_bin": args.ffmpeg_bin,
                 "cookie_file_provided": bool(cookie_file),
                 "cookies_from_browser_provided": bool(cookies_from_browser),
@@ -357,12 +322,6 @@ def main() -> None:
         audio_quality=args.audio_quality,
         include_all_transcripts=not args.skip_all_transcripts,
         overwrite=args.overwrite,
-        generate_segments=not args.no_segments,
-        segment_format=args.segment_format,
-        segment_bitrate=args.segment_bitrate,
-        segment_min_duration=args.segment_min_duration,
-        segment_min_chars=args.segment_min_chars,
-        segment_workers=runtime["segment_workers"],
         ffmpeg_bin=args.ffmpeg_bin,
         video_workers=runtime["video_workers"],
         label="video",
@@ -393,7 +352,6 @@ def main() -> None:
         "cpu_count": runtime["cpu_count"],
         "channel_workers": channel_workers,
         "video_workers": runtime["video_workers"],
-        "segment_workers": runtime["segment_workers"],
         "ffmpeg_bin": args.ffmpeg_bin,
         "cookie_file_provided": bool(cookie_file),
         "cookies_from_browser_provided": bool(cookies_from_browser),
