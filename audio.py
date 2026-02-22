@@ -31,7 +31,7 @@ def _default_youtube_extractor_args() -> dict[str, Any]:
     """
     return {
         "youtube": {
-            "player_client": ["tv_downgraded", "android", "ios", "web_safari", "web"],
+            "player_client": ["tv_downgraded", "android", "ios"],
         }
     }
 
@@ -126,6 +126,7 @@ def fetch_video_info(
                 "extract_flat": False,
                 "extractor_retries": 5,
                 "retries": 5,
+                "js_runtimes": {"node": {}},
                 "http_headers": {
                     "User-Agent": (
                         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -202,6 +203,7 @@ def download_audio(
                 "retries": 8,
                 "fragment_retries": 8,
                 "extractor_retries": 5,
+                "js_runtimes": {"node": {}},
                 "http_headers": {
                     "User-Agent": (
                         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "

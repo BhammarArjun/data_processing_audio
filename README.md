@@ -16,6 +16,12 @@ This project supports:
 
 Example: `urls.example.txt`
 
+Install dependencies (important for YouTube challenge solving):
+
+```bash
+./venv/bin/python -m pip install -U -r requirements.txt
+```
+
 Run:
 
 ```bash
@@ -132,6 +138,43 @@ If you see:
 Sign in to confirm you’re not a bot
 ```
 
+### Important setup note (your VM + local Brave case)
+
+If your Linux VM does not have your signed-in browser profile, do **not** use
+`--cookies-from-browser` on the VM. Export cookies on your laptop (where Brave is
+logged in), copy that file to the VM, then run with `--cookies`.
+
+### 1) Export fresh cookies on your laptop
+
+From this repo on your laptop:
+
+```bash
+chmod +x scripts/export_youtube_cookies.sh scripts/validate_youtube_cookies.sh
+./scripts/export_youtube_cookies.sh "brave" "./cookies.youtube.txt"
+./scripts/validate_youtube_cookies.sh "./cookies.youtube.txt"
+```
+
+If your Brave profile is not default, pass it explicitly (example):
+
+```bash
+./scripts/export_youtube_cookies.sh "brave:Default" "./cookies.youtube.txt"
+```
+
+### 2) Copy cookie file to Linux VM
+
+```bash
+scp ./cookies.youtube.txt <vm-user>@<vm-host>:/absolute/path/cookies.youtube.txt
+```
+
+### 3) Validate on VM before full run
+
+```bash
+./scripts/validate_youtube_cookies.sh "/absolute/path/cookies.youtube.txt" \
+  "https://www.youtube.com/watch?v=PoT1MjnnTo4"
+```
+
+### 4) Run pipeline on VM with cookie file
+
 run with cookies:
 
 ```bash
@@ -139,7 +182,7 @@ run with cookies:
   --channels-file channels.example.txt \
   --dataset-root dataset \
   --system linux \
-  --cookies /absolute/path/to/cookies.txt
+  --cookies /absolute/path/cookies.youtube.txt
 ```
 
 or browser cookies:
@@ -152,12 +195,36 @@ or browser cookies:
   --cookies-from-browser "firefox:default-release"
 ```
 
+For VM reliability, also lower download pressure:
+
+```bash
+./venv/bin/python all_youtube.py \
+  --channels-file channels.example.txt \
+  --dataset-root dataset \
+  --system linux \
+  --cookies /absolute/path/cookies.youtube.txt \
+  --video-workers 2
+```
+
 The same flags also work with `process.py`.
 
 If you still see `Requested format is not available` on many videos:
 
 - test your cookie first with plain yt-dlp on one failing URL
 - reduce parallel downloader pressure:
+
+If `-F` only shows storyboard/image formats and warns about `n challenge solving failed`:
+
+```bash
+./venv/bin/python -m pip install -U "yt-dlp[default]==2026.2.4"
+node --version
+```
+
+Then retry format listing:
+
+```bash
+./venv/bin/python -m yt_dlp --cookies "$PWD/cookies.youtube.txt" -F "https://www.youtube.com/watch?v=PoT1MjnnTo4"
+```
 
 ```bash
 ./venv/bin/python all_youtube.py \
