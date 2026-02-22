@@ -183,6 +183,7 @@ def download_audio(
     cookies_from_browser: tuple[str, str | None, str | None, str | None] | None = None,
     audio_format: str = "mp3",
     audio_quality: str = "192",
+    ffmpeg_bin: str = "ffmpeg",
     overwrite: bool = False,
 ) -> Path:
     """Download best audio and convert to the requested format."""
@@ -220,6 +221,8 @@ def download_audio(
                     }
                 ],
             }
+            if ffmpeg_bin and ffmpeg_bin != "ffmpeg":
+                base_opts["ffmpeg_location"] = ffmpeg_bin
 
             format_attempts: tuple[str | None, ...] = (
                 "bestaudio[acodec!=none]/bestaudio*/bestaudio/best*[acodec!=none]/best",

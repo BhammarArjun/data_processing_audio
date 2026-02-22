@@ -365,6 +365,7 @@ def process_url(
         cookies_from_browser=cookies_from_browser,
         audio_format=audio_format,
         audio_quality=audio_quality,
+        ffmpeg_bin=ffmpeg_bin,
         overwrite=overwrite,
     )
 

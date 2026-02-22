@@ -247,3 +247,40 @@ python -m yt_dlp \
 ```
 
 If the command above fails, the issue is outside the pipeline (cookie/account/IP/session), not dataset directory logic.
+
+## ffmpeg / ffprobe missing on VM
+
+If you see:
+
+```text
+Postprocessing: ffprobe and ffmpeg not found
+```
+
+Install ffmpeg on the VM:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get update && sudo apt-get install -y ffmpeg
+
+# RHEL/CentOS/Fedora (dnf)
+sudo dnf install -y ffmpeg
+```
+
+Verify:
+
+```bash
+ffmpeg -version | head -n 1
+ffprobe -version | head -n 1
+```
+
+If ffmpeg is installed in a non-standard path, pass it explicitly:
+
+```bash
+./venv/bin/python all_youtube.py \
+  --channels-file channels.example.txt \
+  --dataset-root dataset \
+  --system linux \
+  --cookies /absolute/path/cookies.youtube.txt \
+  --ffmpeg-bin /absolute/path/to/ffmpeg \
+  --video-workers 2
+```
