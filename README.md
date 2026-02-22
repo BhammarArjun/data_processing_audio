@@ -153,3 +153,17 @@ or browser cookies:
 ```
 
 The same flags also work with `process.py`.
+
+If you still see `Requested format is not available` on many videos:
+
+- test your cookie first with plain yt-dlp on one failing URL
+- reduce parallel downloader pressure:
+
+```bash
+./venv/bin/python all_youtube.py \
+  --channels-file channels.example.txt \
+  --dataset-root dataset \
+  --system linux \
+  --cookies "$PWD/cookies.txt" \
+  --video-workers 4
+```
